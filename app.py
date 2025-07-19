@@ -159,6 +159,38 @@ def send_login_log(user):
     except Exception as e:
         print("❌ Exception in send_login_log():", str(e))
 
+@app.route("/check-access", methods=["GET"])
+def check_access():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"allowed": False, "error": "Missing or invalid auth header"}), 401
+
+    token = auth_header.split(" ")[1]
+
+    # Fetch user info using the token
+    try:
+        user_res = requests.get(
+            f"{API_BASE_URL}/users/@me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        user_res.raise_for_status()
+        user = user_res.json()
+        user_id = user.get("id")
+    except Exception as e:
+        print("❌ Error validating token:", str(e))
+        return jsonify({"allowed": False, "error": "Token validation failed"}), 401
+
+    # Load allowed users list
+    try:
+        with open("allowed_users.json", "r") as f:
+            allowed_users = json.load(f).get("allowedUsers", [])
+
+        is_allowed = user_id in allowed_users
+        return jsonify({"allowed": is_allowed, "user": user})
+    except Exception as e:
+        print("❌ Error reading whitelist:", str(e))
+        return jsonify({"allowed": False, "error": "Server error"}), 500
+
 
 
 @app.route("/logout")
